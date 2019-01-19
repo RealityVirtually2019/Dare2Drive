@@ -19,7 +19,9 @@ limitations under the License.
 
 ************************************************************************************/
 
+using System;
 using System.Collections.Generic;
+using UnityEngine.XR;
 using UnityEngine;
 
 /// <summary>
@@ -28,6 +30,8 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class OVRGrabber : MonoBehaviour
 {
+    #region Parameters
+
     // Grip trigger thresholds for picking up objects, with some hysteresis.
     public float grabBegin = 0.55f;
     public float grabEnd = 0.35f;
@@ -55,6 +59,26 @@ public class OVRGrabber : MonoBehaviour
     [SerializeField]
     protected Transform m_parentTransform;
 
+   ////////////////////////////////////////////////////////////////
+
+
+    [SerializeField]
+    protected Transform m_hand;
+
+    protected Transform localAvatar;
+
+    [SerializeField]
+    protected Transform m_controllerPoint;
+
+    protected OVRCameraRig rig = null;
+
+    protected System.Action<OVRCameraRig> updateAnchor;
+
+    protected System.Action<OVRCameraRig> updateObject;
+    ////////////////////////////////////////////////////////////////////
+
+
+
     protected bool m_grabVolumeEnabled = true;
     protected Vector3 m_lastPos;
     protected Quaternion m_lastRot;
@@ -75,18 +99,11 @@ public class OVRGrabber : MonoBehaviour
         get { return m_grabbedObj; }
     }
 
-	public void ForceRelease(OVRGrabbable grabbable)
-    {
-        bool canRelease = (
-            (m_grabbedObj != null) &&
-            (m_grabbedObj == grabbable)
-        );
-        if (canRelease)
-        {
-            GrabEnd();
-        }
-    }
+    #endregion
 
+    #region Unity Functions
+
+   
     protected virtual void Awake()
     {
         m_anchorOffsetPosition = transform.localPosition;
@@ -94,17 +111,23 @@ public class OVRGrabber : MonoBehaviour
 
 		// If we are being used with an OVRCameraRig, let it drive input updates, which may come from Update or FixedUpdate.
 
-		OVRCameraRig rig = null;
+	
 		if (transform.parent != null && transform.parent.parent != null)
 			rig = transform.parent.parent.GetComponent<OVRCameraRig>();
 		
-		if (rig != null)
+      
+        updateAnchor = (r) => { OnUpdatedAnchors(); };
+        updateObject = (r) => { OnUpdateObject(); };
+
+        if (rig != null)
 		{
-			rig.UpdatedAnchors += (r) => {OnUpdatedAnchors();};
-			operatingWithoutOVRCameraRig = false;
+            rig.UpdatedAnchors += updateAnchor;
+            rig.UpdatedAnchors += (r) => { GrabOrRelease(); };
+            operatingWithoutOVRCameraRig = false;
 		}
     }
 
+        #region Other Unity Functions
     protected virtual void Start()
     {
         m_lastPos = transform.position;
@@ -130,44 +153,10 @@ public class OVRGrabber : MonoBehaviour
 			OnUpdatedAnchors();
 	}
 
-    // Hands follow the touch anchors by calling MovePosition each frame to reach the anchor.
-    // This is done instead of parenting to achieve workable physics. If you don't require physics on 
-    // your hands or held objects, you may wish to switch to parenting.
-    void OnUpdatedAnchors()
-    {
-        Vector3 handPos = OVRInput.GetLocalControllerPosition(m_controller);
-        Quaternion handRot = OVRInput.GetLocalControllerRotation(m_controller);
-        Vector3 destPos = m_parentTransform.TransformPoint(m_anchorOffsetPosition + handPos);
-        Quaternion destRot = m_parentTransform.rotation * handRot * m_anchorOffsetRotation;
-        GetComponent<Rigidbody>().MovePosition(destPos);
-        GetComponent<Rigidbody>().MoveRotation(destRot);
-
-        if (!m_parentHeldObject)
-        {
-            MoveGrabbedObject(destPos, destRot);
-        }
-        m_lastPos = transform.position;
-        m_lastRot = transform.rotation;
-
-		float prevFlex = m_prevFlex;
-		// Update values from inputs
-		m_prevFlex = OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, m_controller);
-
-		CheckForGrabOrRelease(prevFlex);
-    }
-
-    void OnDestroy()
-    {
-        if (m_grabbedObj != null)
-        {
-            GrabEnd();
-        }
-    }
-
     void OnTriggerEnter(Collider otherCollider)
     {
         // Get the grab trigger
-		OVRGrabbable grabbable = otherCollider.GetComponent<OVRGrabbable>() ?? otherCollider.GetComponentInParent<OVRGrabbable>();
+        OVRGrabbable grabbable = otherCollider.GetComponent<OVRGrabbable>() ?? otherCollider.GetComponentInParent<OVRGrabbable>();
         if (grabbable == null) return;
 
         // Add the grabbable
@@ -178,7 +167,7 @@ public class OVRGrabber : MonoBehaviour
 
     void OnTriggerExit(Collider otherCollider)
     {
-		OVRGrabbable grabbable = otherCollider.GetComponent<OVRGrabbable>() ?? otherCollider.GetComponentInParent<OVRGrabbable>();
+        OVRGrabbable grabbable = otherCollider.GetComponent<OVRGrabbable>() ?? otherCollider.GetComponentInParent<OVRGrabbable>();
         if (grabbable == null) return;
 
         // Remove the grabbable
@@ -199,17 +188,70 @@ public class OVRGrabber : MonoBehaviour
         }
     }
 
-    protected void CheckForGrabOrRelease(float prevFlex)
+    void OnDestroy()
     {
-        if ((m_prevFlex >= grabBegin) && (prevFlex < grabBegin))
-        {
-            GrabBegin();
-        }
-        else if ((m_prevFlex <= grabEnd) && (prevFlex > grabEnd))
+        if (m_grabbedObj != null)
         {
             GrabEnd();
         }
     }
+        #endregion
+
+    #endregion
+
+
+
+
+    // Hands follow the touch anchors by calling MovePosition each frame to reach the anchor.
+    // This is done instead of parenting to achieve workable physics. If you don't require physics on 
+    // your hands or held objects, you may wish to switch to parenting.
+    void OnUpdatedAnchors()
+    {
+        ////////////////////////////////Update Hands Position ////////////////////////////////
+        Vector3 handPos = OVRInput.GetLocalControllerPosition(m_controller);
+        Quaternion handRot = OVRInput.GetLocalControllerRotation(m_controller);
+
+        Vector3 destPos = m_parentTransform.TransformPoint(m_anchorOffsetPosition + handPos);
+        Quaternion destRot = m_parentTransform.rotation * handRot * m_anchorOffsetRotation;
+
+
+        GetComponent<Rigidbody>().MovePosition(destPos);
+        GetComponent<Rigidbody>().MoveRotation(destRot);
+
+        //////////////////////////////////////////////////////////////////////////////////////
+
+        if (!m_parentHeldObject)
+        {
+            MoveGrabbedObject(destPos, destRot);
+        }
+        m_lastPos = transform.position;
+        m_lastRot = transform.rotation;
+		
+    }
+
+    /// <summary>
+    /// Hands will not move and attached to the object,
+    /// therefore, we need to update object position(Rotate wheel)
+    /// </summary>
+    void OnUpdateObject()
+    {
+        if (m_grabbedObj == null)
+        {
+            return;
+        }
+        
+        Transform grabbedTransform = m_grabbedObj.transform;
+        Vector3 linearVelocity = OVRInput.GetLocalControllerVelocity(m_controller);
+
+        Vector3 centripetal = grabbedTransform.position - transform.position;
+
+        float rotationDirection = Vector3.Dot(Vector3.Cross(centripetal, linearVelocity), grabbedTransform.TransformDirection(new Vector3(0, 1, 0)));
+        float rotationAngle = (Mathf.Abs(rotationDirection) < .01f) ? 0f : (Mathf.Abs(rotationDirection) < 0.05f) ?- 1 * rotationDirection / Mathf.Abs(rotationDirection): -1 * rotationDirection / 0.05f;
+        grabbedTransform.RotateAround(grabbedTransform.GetChild(0).position, grabbedTransform.GetChild(0).TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
+        
+    }
+
+    
 
     protected virtual void GrabBegin()
     {
@@ -289,17 +331,76 @@ public class OVRGrabber : MonoBehaviour
                 m_grabbedObjectRotOff = relOri;
             }
 
-            // Note: force teleport on grab, to avoid high-speed travel to dest which hits a lot of other objects at high
-            // speed and sends them flying. The grabbed object may still teleport inside of other objects, but fixing that
-            // is beyond the scope of this demo.
-            MoveGrabbedObject(m_lastPos, m_lastRot, true);
-            if(m_parentHeldObject)
+          
+            
+
+            if(m_grabbedObj.isFixed)
             {
-                m_grabbedObj.transform.parent = transform;
+                OVRCameraRig rig = transform.parent.parent.GetComponent<OVRCameraRig>();
+                rig.UpdatedAnchors -= updateAnchor;
+                localAvatar = m_hand.parent;
+
+                OvrAvatar.lockedHand = m_hand.gameObject;
+                OvrAvatar.lockedController = m_controllerPoint.gameObject;
+
+                m_hand.parent = m_grabbedObj.transform;
+                m_controllerPoint.parent = m_grabbedObj.transform;
+                rig.UpdatedAnchors += updateObject;
             }
+            else
+            {
+                // Note: force teleport on grab, to avoid high-speed travel to dest which hits a lot of other objects at high
+                // speed and sends them flying. The grabbed object may still teleport inside of other objects, but fixing that
+                // is beyond the scope of this demo.
+                MoveGrabbedObject(m_lastPos, m_lastRot, true);
+
+                if (m_parentHeldObject)
+                {
+                    m_grabbedObj.transform.parent = transform;
+                }
+            }
+           
         }
     }
+    
 
+    protected void GrabEnd()
+    {
+        if (m_grabbedObj != null)
+        {
+            OVRPose localPose = new OVRPose { position = OVRInput.GetLocalControllerPosition(m_controller), orientation = OVRInput.GetLocalControllerRotation(m_controller) };
+            OVRPose offsetPose = new OVRPose { position = m_anchorOffsetPosition, orientation = m_anchorOffsetRotation };
+            localPose = localPose * offsetPose;
+
+            OVRPose trackingSpace = transform.ToOVRPose() * localPose.Inverse();
+            Vector3 linearVelocity = trackingSpace.orientation * OVRInput.GetLocalControllerVelocity(m_controller);
+            Vector3 angularVelocity = trackingSpace.orientation * OVRInput.GetLocalControllerAngularVelocity(m_controller);
+
+
+            if (m_grabbedObj.isFixed)
+            {
+                OVRCameraRig rig = transform.parent.parent.GetComponent<OVRCameraRig>();
+                rig.UpdatedAnchors -= updateObject;
+                OvrAvatar.lockedHand = null;
+                OvrAvatar.lockedController = null;
+                m_hand.parent = localAvatar;
+                m_controllerPoint.parent = localAvatar;
+                rig.UpdatedAnchors += updateAnchor;
+                GrabbableRelease(Vector3.zero, Vector3.zero);
+            }
+            else
+            {
+                GrabbableRelease(linearVelocity, angularVelocity);
+            }
+
+        }
+
+        // Re-enable grab volumes to allow overlap events
+        GrabVolumeEnable(true);
+    }
+
+
+    #region Other Help Functions
     protected virtual void MoveGrabbedObject(Vector3 pos, Quaternion rot, bool forceTeleport = false)
     {
         if (m_grabbedObj == null)
@@ -323,23 +424,13 @@ public class OVRGrabber : MonoBehaviour
         }
     }
 
-    protected void GrabEnd()
+    protected void GrabOrRelease()
     {
-        if (m_grabbedObj != null)
-        {
-			OVRPose localPose = new OVRPose { position = OVRInput.GetLocalControllerPosition(m_controller), orientation = OVRInput.GetLocalControllerRotation(m_controller) };
-            OVRPose offsetPose = new OVRPose { position = m_anchorOffsetPosition, orientation = m_anchorOffsetRotation };
-            localPose = localPose * offsetPose;
+        float prevFlex = m_prevFlex;
+        // Update values from inputs
+        m_prevFlex = OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, m_controller);
 
-			OVRPose trackingSpace = transform.ToOVRPose() * localPose.Inverse();
-			Vector3 linearVelocity = trackingSpace.orientation * OVRInput.GetLocalControllerVelocity(m_controller);
-			Vector3 angularVelocity = trackingSpace.orientation * OVRInput.GetLocalControllerAngularVelocity(m_controller);
-
-            GrabbableRelease(linearVelocity, angularVelocity);
-        }
-
-        // Re-enable grab volumes to allow overlap events
-        GrabVolumeEnable(true);
+        CheckForGrabOrRelease(prevFlex);
     }
 
     protected void GrabbableRelease(Vector3 linearVelocity, Vector3 angularVelocity)
@@ -369,11 +460,38 @@ public class OVRGrabber : MonoBehaviour
         }
     }
 
-	protected virtual void OffhandGrabbed(OVRGrabbable grabbable)
+    public void ForceRelease(OVRGrabbable grabbable)
+    {
+        bool canRelease = (
+            (m_grabbedObj != null) &&
+            (m_grabbedObj == grabbable)
+        );
+        if (canRelease)
+        {
+            GrabEnd();
+        }
+    }
+
+    protected void CheckForGrabOrRelease(float prevFlex)
+    {
+        if ((m_prevFlex >= grabBegin) && (prevFlex < grabBegin))
+        {
+            GrabBegin();
+        }
+        else if ((m_prevFlex <= grabEnd) && (prevFlex > grabEnd))
+        {
+            GrabEnd();
+        }
+    }
+
+    protected virtual void OffhandGrabbed(OVRGrabbable grabbable)
     {
         if (m_grabbedObj == grabbable)
         {
             GrabbableRelease(Vector3.zero, Vector3.zero);
         }
     }
+
+    #endregion
+
 }

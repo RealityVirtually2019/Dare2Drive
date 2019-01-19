@@ -45,6 +45,17 @@ public class OvrAvatar : MonoBehaviour
     public OvrAvatarMaterialManager DefaultBodyMaterialManager;
     public OvrAvatarMaterialManager DefaultHandMaterialManager;
 
+
+    /// <summary>
+    /// lock hand's position
+    /// </summary>
+    public static GameObject lockedHand;
+
+    /// <summary>
+    /// lock controller's position
+    /// </summary>
+    public static GameObject lockedController;
+
     public OvrAvatarDriver Driver;
     public OvrAvatarBase Base;
     public OvrAvatarBody Body;
@@ -94,6 +105,7 @@ public class OvrAvatar : MonoBehaviour
 
     public IntPtr sdkAvatar = IntPtr.Zero;
     private HashSet<UInt64> assetLoadingIds = new HashSet<UInt64>();
+
     private Dictionary<string, OvrAvatarComponent> trackedComponents =
         new Dictionary<string, OvrAvatarComponent>();
 
@@ -292,6 +304,10 @@ public class OvrAvatar : MonoBehaviour
 
     internal static void ConvertTransform(ovrAvatarTransform transform, Transform target)
     {
+        if(GameObject.ReferenceEquals(target.gameObject, lockedHand)|| GameObject.ReferenceEquals(target.gameObject, lockedController))
+        {
+            return;
+        }
         Vector3 position = transform.position;
         position.z = -position.z;
         Quaternion orientation = transform.orientation;

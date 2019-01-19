@@ -42,6 +42,14 @@ public class OVRGrabbable : MonoBehaviour
     protected Collider m_grabbedCollider = null;
     protected OVRGrabber m_grabbedBy = null;
 
+    [SerializeField]
+    protected bool m_fixed = false;
+
+    public bool isFixed
+    {
+        get { return m_fixed; }
+    }
+
 	/// <summary>
 	/// If true, the object can currently be grabbed.
 	/// </summary>
