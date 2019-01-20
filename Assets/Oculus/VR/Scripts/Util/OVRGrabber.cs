@@ -83,7 +83,8 @@ public class OVRGrabber : MonoBehaviour
     [SerializeField]
     protected Transform m_parentTransform;
 
-   ////////////////////////////////////////////////////////////////
+    public AudioClip hapticAudioClip;
+    ////////////////////////////////////////////////////////////////
 
 
     [SerializeField]
@@ -271,7 +272,7 @@ public class OVRGrabber : MonoBehaviour
 
         float rotationDirection = Vector3.Dot(Vector3.Cross(centripetal, linearVelocity), grabbedTransform.TransformDirection(new Vector3(0, 1, 0)));
         float rotationAngle = (Mathf.Abs(rotationDirection) < .01f) ? 0f : (Mathf.Abs(rotationDirection) < 0.05f) ?- 1 * rotationDirection / Mathf.Abs(rotationDirection): -1 * rotationDirection / 0.05f;
-        grabbedTransform.RotateAround(grabbedTransform.GetChild(0).position, grabbedTransform.GetChild(0).TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
+        grabbedTransform.RotateAround(grabbedTransform.position, grabbedTransform.TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
         
     }
 
@@ -319,6 +320,17 @@ public class OVRGrabber : MonoBehaviour
 
             m_grabbedObj = closestGrabbable;
             m_grabbedObj.GrabBegin(this, closestGrabbableCollider);
+
+            //NEW: Add Haptic Sound
+            OVRHapticsClip hapticsClip = new OVRHapticsClip(hapticAudioClip);
+            if (m_controller == OVRInput.Controller.LTouch)
+            {
+                OVRHaptics.LeftChannel.Preempt(hapticsClip);
+            }
+            else
+            {
+                OVRHaptics.RightChannel.Preempt(hapticsClip);
+            }
 
             m_lastPos = transform.position;
             m_lastRot = transform.rotation;
