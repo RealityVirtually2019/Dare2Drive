@@ -155,7 +155,7 @@ public class OVRPlayerController : MonoBehaviour
 	/// <summary>
 	/// When true, user input will be applied to rotation. Set this to false whenever the player controller needs to ignore input for rotation.
 	/// </summary>
-	public bool EnableRotation = true;
+	public bool EnableRotation = false;
 
 	protected CharacterController Controller = null;
 	protected OVRCameraRig CameraRig = null;
@@ -276,7 +276,7 @@ public class OVRPlayerController : MonoBehaviour
 		}
 
         //Disable Movement
-		//UpdateMovement();
+		UpdateMovement();
 
 		Vector3 moveDirection = Vector3.zero;
 
