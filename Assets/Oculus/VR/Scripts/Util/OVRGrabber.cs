@@ -100,6 +100,8 @@ public class OVRGrabber : MonoBehaviour
     protected System.Action<OVRCameraRig> updateAnchor;
 
     protected System.Action<OVRCameraRig> updateObject;
+
+ 
     ////////////////////////////////////////////////////////////////////
 
 
@@ -272,7 +274,14 @@ public class OVRGrabber : MonoBehaviour
 
         float rotationDirection = Vector3.Dot(Vector3.Cross(centripetal, linearVelocity), grabbedTransform.TransformDirection(new Vector3(0, 1, 0)));
         float rotationAngle = (Mathf.Abs(rotationDirection) < .01f) ? 0f : (Mathf.Abs(rotationDirection) < 0.05f) ?- 1 * rotationDirection / Mathf.Abs(rotationDirection): -1 * rotationDirection / 0.05f;
-        grabbedTransform.RotateAround(grabbedTransform.position, grabbedTransform.TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
+        if (wheelAuto.deltaRotation + rotationAngle <= 450f && wheelAuto.deltaRotation + rotationAngle >= -450f)
+        {
+            grabbedTransform.RotateAround(grabbedTransform.position, grabbedTransform.TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
+            wheelAuto.deltaRotation += rotationAngle;
+
+        }
+
+
         
     }
 
@@ -319,6 +328,8 @@ public class OVRGrabber : MonoBehaviour
             }
 
             m_grabbedObj = closestGrabbable;
+            //disable recovering
+            m_grabbedObj.GetComponent<wheelAuto>().setRecovering = false;
             m_grabbedObj.GrabBegin(this, closestGrabbableCollider);
 
             //NEW: Add Haptic Sound
@@ -422,7 +433,11 @@ public class OVRGrabber : MonoBehaviour
                 m_hand.parent = localAvatar;
                 m_controllerPoint.parent = localAvatar;
                 rig.UpdatedAnchors += updateAnchor;
+
+                //enable recovering
+                m_grabbedObj.GetComponent<wheelAuto>().setRecovering = true;
                 GrabbableRelease(Vector3.zero, Vector3.zero);
+                
             }
             else
             {
