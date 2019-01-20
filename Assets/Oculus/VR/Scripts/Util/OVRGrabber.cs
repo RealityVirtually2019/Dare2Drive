@@ -99,9 +99,10 @@ public class OVRGrabber : MonoBehaviour
 
     protected System.Action<OVRCameraRig> updateAnchor;
 
-    protected System.Action<OVRCameraRig> updateObject;
+    protected System.Action<OVRCameraRig> updateWheel;
 
- 
+
+
     ////////////////////////////////////////////////////////////////////
 
 
@@ -144,7 +145,8 @@ public class OVRGrabber : MonoBehaviour
 		
       
         updateAnchor = (r) => { OnUpdatedAnchors(); };
-        updateObject = (r) => { OnUpdateObject(); };
+        updateWheel = (r) => { OnUpdateWheel(); };
+       
 
         if (rig != null)
 		{
@@ -154,7 +156,9 @@ public class OVRGrabber : MonoBehaviour
 		}
     }
 
-        #region Other Unity Functions
+  
+
+    #region Other Unity Functions
     protected virtual void Start()
     {
         m_lastPos = transform.position;
@@ -260,7 +264,7 @@ public class OVRGrabber : MonoBehaviour
     /// Hands will not move and attached to the object,
     /// therefore, we need to update object position(Rotate wheel)
     /// </summary>
-    void OnUpdateObject()
+    void OnUpdateWheel()
     {
         if (m_grabbedObj == null)
         {
@@ -279,10 +283,7 @@ public class OVRGrabber : MonoBehaviour
             grabbedTransform.RotateAround(grabbedTransform.position, grabbedTransform.TransformDirection(new Vector3(0, 1, 0)), rotationAngle);
             wheelAuto.deltaRotation += rotationAngle;
 
-        }
-
-
-        
+        }       
     }
 
     
@@ -296,11 +297,11 @@ public class OVRGrabber : MonoBehaviour
         // Iterate grab candidates and find the closest grabbable candidate
 		foreach (OVRGrabbable grabbable in m_grabCandidates.Keys)
         {
-            bool canGrab = !(grabbable.isGrabbed && !grabbable.allowOffhandGrab);
-            if (!canGrab)
-            {
-                continue;
-            }
+            //bool canGrab = !(grabbable.isGrabbed && !grabbable.allowOffhandGrab);
+            //if (!canGrab)
+            //{
+            //    continue;
+            //}
 
             for (int j = 0; j < grabbable.grabPoints.Length; ++j)
             {
@@ -324,7 +325,14 @@ public class OVRGrabber : MonoBehaviour
         {
             if (closestGrabbable.isGrabbed)
             {
-                closestGrabbable.grabbedBy.OffhandGrabbed(closestGrabbable);
+                if (closestGrabbable.isFixed)
+                {
+                    closestGrabbable.grabbedBy.GrabEnd();
+                }
+                else
+                {
+                  closestGrabbable.grabbedBy.OffhandGrabbed(closestGrabbable);
+                }
             }
 
             m_grabbedObj = closestGrabbable;
@@ -384,15 +392,20 @@ public class OVRGrabber : MonoBehaviour
             if(m_grabbedObj.isFixed)
             {
                 OVRCameraRig rig = transform.parent.parent.GetComponent<OVRCameraRig>();
-                rig.UpdatedAnchors -= updateAnchor;
-                localAvatar = m_hand.parent;
 
-                OvrAvatar.lockedHand = m_hand.gameObject;
-                OvrAvatar.lockedController = m_controllerPoint.gameObject;
+              
+                    rig.UpdatedAnchors -= updateAnchor;
+                    localAvatar = m_hand.parent;
 
-                m_hand.parent = m_grabbedObj.transform;
-                m_controllerPoint.parent = m_grabbedObj.transform;
-                rig.UpdatedAnchors += updateObject;
+                    OvrAvatar.lockedHand = m_hand.gameObject;
+                    OvrAvatar.lockedController = m_controllerPoint.gameObject;
+
+                    m_hand.parent = m_grabbedObj.transform;
+                    m_controllerPoint.parent = m_grabbedObj.transform;
+                    rig.UpdatedAnchors += updateWheel;
+             
+              
+                
             }
             else
             {
@@ -426,17 +439,21 @@ public class OVRGrabber : MonoBehaviour
 
             if (m_grabbedObj.isFixed)
             {
-                OVRCameraRig rig = transform.parent.parent.GetComponent<OVRCameraRig>();
-                rig.UpdatedAnchors -= updateObject;
-                OvrAvatar.lockedHand = null;
-                OvrAvatar.lockedController = null;
-                m_hand.parent = localAvatar;
-                m_controllerPoint.parent = localAvatar;
-                rig.UpdatedAnchors += updateAnchor;
 
-                //enable recovering
-                m_grabbedObj.GetComponent<wheelAuto>().setRecovering = true;
-                GrabbableRelease(Vector3.zero, Vector3.zero);
+                OVRCameraRig rig = transform.parent.parent.GetComponent<OVRCameraRig>();
+               
+                    rig.UpdatedAnchors -= updateWheel;
+                    OvrAvatar.lockedHand = null;
+                    OvrAvatar.lockedController = null;
+                    m_hand.parent = localAvatar;
+                    m_controllerPoint.parent = localAvatar;
+                    rig.UpdatedAnchors += updateAnchor;
+
+                    //enable recovering
+                    m_grabbedObj.GetComponent<wheelAuto>().setRecovering = true;
+                    GrabbableRelease(Vector3.zero, Vector3.zero);
+                
+                
                 
             }
             else

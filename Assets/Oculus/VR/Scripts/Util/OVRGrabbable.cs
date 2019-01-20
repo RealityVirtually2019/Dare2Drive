@@ -74,9 +74,10 @@ public class OVRGrabbable : MonoBehaviour
         get { return m_fixed; }
     }
 
-	/// <summary>
-	/// If true, the object can currently be grabbed.
-	/// </summary>
+
+    /// <summary>
+    /// If true, the object can currently be grabbed.
+    /// </summary>
     public bool allowOffhandGrab
     {
         get { return m_allowOffhandGrab; }
